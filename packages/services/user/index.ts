@@ -125,18 +125,6 @@ class UserService {
     return hash
   }
 
-  private async getUserInfoById(id: string) {
-    const user = await db.select({
-      id: usersTable.id,
-      fullname: usersTable.fullname,
-      email: usersTable.email,
-
-    }).from(usersTable).where(eq(usersTable.id, id))
-
-    if (user.length === 0 || !user || !user[0]) throw new Error("User with this id not exits")
-
-    return user[0]
-  }
 
   // <---- Public Functions ---->
 
@@ -265,15 +253,26 @@ class UserService {
     }
   }
 
+  public async getUserInfoById(id: string) {
+    const user = await db.select({
+      id: usersTable.id,
+      fullname: usersTable.fullname,
+      email: usersTable.email,
+
+    }).from(usersTable).where(eq(usersTable.id, id))
+
+    if (user.length === 0 || !user || !user[0]) throw new Error("User with this id not exits")
+
+    return user[0]
+  }
+
   public async verifyAndDecodeUserToken(payload: VerifyUserTokenInputType) {
-    const data = await this.verifyAccessToken(payload)
-
-    const userInfo = await this.getUserInfoById(data.userId)
-
+    const { userId: id } = await this.verifyAccessToken(payload)
     return {
-      ...userInfo
+      id
     }
   }
+
 }
 
 export default UserService;

@@ -8,7 +8,7 @@ import {
   refreshTokenOutputModel
 } from "./model.js";
 import { userService } from "../../services/index.js";
-import { publicProcedure, router } from "../../trpc";
+import { authenticatedProcedure, publicProcedure, router } from "../../trpc";
 import { generatePath } from "../../utils/path-generator";
 import { setAuthenticationCookie } from "../../utils/cookie.js";
 
@@ -90,7 +90,7 @@ export const authRouter = router({
       }
       userService.refreshTokenService({ refreshToken })
       const input = ctx.getCookie("refresh-Token")
-      const { id, accessToken, refreshToken: newRefreshToken } = await userService.refreshTokenService({ refreshToken })
+      const { id, accessToken, refreshToken: newRefreshToken } = await userService.refreshTokenService({ refreshToken: input })
 
       ctx.createCookie("refresh-Token", newRefreshToken)
       ctx.createCookie("access-Token", accessToken)
@@ -101,22 +101,18 @@ export const authRouter = router({
         refreshToken: newRefreshToken
       }
     }),
-  getLoggedInUserInfo: publicProcedure
+  getLoggedInUserInfo: authenticatedProcedure
     .meta({
       openapi: {
         method: "GET",
         path: getPath("/get-logged-in-user-info"),
+        protect:true
       }
     })
     .output(getLoggedInUserInfoOutptModel)
     .query(async ({ ctx }) => {
-      const accessToken = ctx.getCookie("access-Token")
 
-      if (!accessToken) {
-        throw new Error("No access token found")
-      }
-
-      const { id, fullname, email } = await userService.verifyAndDecodeUserToken({ token: accessToken })
+      const { id, fullname, email } = await userService.getUserInfoById(ctx.user.id)
 
       return {
         id,
@@ -124,6 +120,6 @@ export const authRouter = router({
         email
       }
     })
-}) 
+})
 
 
