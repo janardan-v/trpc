@@ -29,6 +29,7 @@ import * as JWT from "jsonwebtoken"
 
 class UserService {
 
+  // <---- Private Functions ---->
 
   private async getUserWithEmail(email: string) {
     const emailUser = await db.select().from(usersTable).where(eq(usersTable.email, (email)))
@@ -58,30 +59,40 @@ class UserService {
       throw new Error(result.error.message)
 
     const { token } = result.data
-    const decoded = JWT.verify(token,
-      env.ACCESS_SECRET as JWT.Secret,
-    ) as JWT.JwtPayload & {
-      id: string
-    }
-    return {
-      userId: decoded.id
+    try {
+
+      const decoded = JWT.verify(token,
+        env.ACCESS_SECRET as JWT.Secret,
+      ) as JWT.JwtPayload & {
+        id: string
+      }
+
+      return {
+        userId: decoded.id
+      }
+    } catch {
+      throw new Error("Invalid access token")
     }
   }
+
   private async verifyRefreshToken(payload: VerifyUserTokenInputType) {
     const result =
       verifyUserTokenInput.safeParse(payload)
 
     if (!result.success)
       throw new Error(result.error.message)
-
-    const { token } = result.data
-    const decoded = JWT.verify(token,
-      env.REFRESH_SECRET as JWT.Secret,
-    ) as JWT.JwtPayload & {
-      id: string
-    }
-    return {
-      userId: decoded.id
+    try {
+      const { token } = result.data
+      const decoded = JWT.verify(token,
+        env.REFRESH_SECRET as JWT.Secret,
+      ) as JWT.JwtPayload & {
+        id: string
+      }
+      return {
+        userId: decoded.id
+      }
+    } catch {
+      throw new Error("Invalid refresh token")
     }
   }
 
@@ -109,6 +120,26 @@ class UserService {
     return { verificationToken }
   }
 
+  private async generateHash(salt: string, password: string) {
+    const hash = crypto.createHmac("sha-256", salt).update(password).digest("hex")
+    return hash
+  }
+
+  private async getUserInfoById(id: string) {
+    const user = await db.select({
+      id: usersTable.id,
+      fullname: usersTable.fullname,
+      email: usersTable.email,
+
+    }).from(usersTable).where(eq(usersTable.id, id))
+
+    if (user.length === 0 || !user || !user[0]) throw new Error("User with this id not exits")
+
+    return user[0]
+  }
+
+  // <---- Public Functions ---->
+
   public async createUserWithEmailAndPassword(payload: CreateUserWithEmailAndPasswordInputType) {
 
     const result = createUserWithEmailAndPasswordInput.safeParse(payload)
@@ -122,13 +153,12 @@ class UserService {
     }
 
     const salt = crypto.randomBytes(16).toString("hex")
-    const hash = crypto.createHmac("sha-256", salt).update(payload.password).digest("hex")
-
+    const hashedPassword = await this.generateHash(salt, payload.password)
 
     const createdUser = await db.insert(usersTable).values({
       email: payload.email,
       fullname: payload.fullname,
-      password: hash,
+      password: hashedPassword,
       salt
     }).returning({
       id: usersTable.id
@@ -153,12 +183,15 @@ class UserService {
 
     const emailUserSelect = await this.getUserWithEmail(payload.email)
 
-    if (!emailUserSelect || !emailUserSelect.password || !emailUserSelect.salt) {
+    if (!emailUserSelect) {
       throw new Error("User with this email do not exists")
+    }
+    if (!emailUserSelect.password || !emailUserSelect.salt) {
+      throw new Error("Invalid authentication method")
     }
 
     const salt = emailUserSelect.salt
-    const hashedPassword = crypto.createHmac("sha-256", salt).update(payload.password).digest("hex")
+    const hashedPassword = await this.generateHash(salt, payload.password)
 
     if (hashedPassword !== emailUserSelect.password) throw new Error("Invalid credentials")
 
@@ -229,6 +262,16 @@ class UserService {
       id: updateUser[0].id,
       accessToken: newAccessToken,
       refreshToken: newRefreshToken
+    }
+  }
+
+  public async verifyAndDecodeUserToken(payload: VerifyUserTokenInputType) {
+    const data = await this.verifyAccessToken(payload)
+
+    const userInfo = await this.getUserInfoById(data.userId)
+
+    return {
+      ...userInfo
     }
   }
 }

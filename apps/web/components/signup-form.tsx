@@ -19,6 +19,7 @@ import {
 import { Input } from "~/components/ui/input"
 import { trpc } from "~/trpc/client"
 import { useSignUp } from "~/hooks/api/auth"
+import { useRouter } from "next/navigation"
 
 type SignupFormValues = {
   fullname: string
@@ -31,10 +32,11 @@ export function SignupForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
+  const router = useRouter()
 
-  const {createUserWithEmailAndPasswordAsync, createUserWithEmailAndPassword, isError} = useSignUp()
+  const { createUserWithEmailAndPasswordAsync, createUserWithEmailAndPassword, isError } = useSignUp()
 
- const { register, handleSubmit, watch, formState: { isSubmitting } } = useForm<SignupFormValues>({
+  const { register, handleSubmit, watch, formState: { isSubmitting } } = useForm<SignupFormValues>({
     defaultValues: {
       fullname: "",
       email: "",
@@ -52,6 +54,7 @@ export function SignupForm({
     console.log("Email:", values.email)
     console.log("Password:", values.password)
     console.log("Confirm Password:", values.confirmPassword)
+    router.replace("/dashboard")
   }
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>

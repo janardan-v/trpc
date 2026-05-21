@@ -1,6 +1,7 @@
 import {
   createUserWithEmailAndPasswordInputModel,
   createUserWithEmailAndPasswordOutputModel,
+  getLoggedInUserInfoOutptModel,
   loginUserWithEmailAndPasswordInputModel,
   loginUserWithEmailAndPasswordOutputModel,
   logoutUserOutputModel,
@@ -87,7 +88,7 @@ export const authRouter = router({
       if (!refreshToken) {
         throw new Error("No refresh token found")
       }
-      userService.refreshTokenService({refreshToken})
+      userService.refreshTokenService({ refreshToken })
       const input = ctx.getCookie("refresh-Token")
       const { id, accessToken, refreshToken: newRefreshToken } = await userService.refreshTokenService({ refreshToken })
 
@@ -99,7 +100,30 @@ export const authRouter = router({
         accessToken,
         refreshToken: newRefreshToken
       }
+    }),
+  getLoggedInUserInfo: publicProcedure
+    .meta({
+      openapi: {
+        method: "GET",
+        path: getPath("/get-logged-in-user-info"),
+      }
     })
-})
+    .output(getLoggedInUserInfoOutptModel)
+    .query(async ({ ctx }) => {
+      const accessToken = ctx.getCookie("access-Token")
+
+      if (!accessToken) {
+        throw new Error("No access token found")
+      }
+
+      const { id, fullname, email } = await userService.verifyAndDecodeUserToken({ token: accessToken })
+
+      return {
+        id,
+        fullname,
+        email
+      }
+    })
+}) 
 
 

@@ -30,3 +30,11 @@ export const refreshTokenOutputModel = z.object({
     refreshToken: z.string().describe("Refresh Token of the user"),
     accessToken: z.string().describe("Access Token of the user")
 })
+
+export const getLoggedInUserInfoInputModel = z.undefined()
+export const getLoggedInUserInfoOutptModel = z.object({
+    id: z.string().describe("ID of the user"),
+    fullname: z.string().describe("Full name of the user"),
+    email: z.string().describe("Email of the user"),
+})
+
