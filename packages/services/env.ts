@@ -1,10 +1,15 @@
 import { z } from "zod";
 
 const envSchema = z.object({
-  GOOGLE_OAUTH_CLIENT_ID: z.string(),
-  GOOGLE_OAUTH_CLIENT_SECRET: z.string(),
-  GOOGLE_OAUTH_REDIRECT_URI: z.string(),
-});
+  ACCESS_SECRET: z.string(),
+  ACCESS_EXPIRES_IN: z.string(),
+
+  REFRESH_SECRET: z.string(),
+  REFRESH_EXPIRES_IN: z.string(),
+
+  VERIFICATION_SECRET: z.string(),
+  VERIFICATION_EXPIRES_IN: z.string(),
+})
 
 function createEnv(env: NodeJS.ProcessEnv) {
   const safeParseResult = envSchema.safeParse(env);
