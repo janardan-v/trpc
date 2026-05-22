@@ -1,0 +1,1 @@
+ALTER TABLE "forms" ALTER COLUMN "deadline" SET NOT NULL;

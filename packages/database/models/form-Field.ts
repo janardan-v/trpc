@@ -28,7 +28,7 @@ export const formFieldsTable = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
 
-    formID: uuid("form_id")
+    formId: uuid("form_id")
       .references(() => formsTable.id)
       .notNull(),
 
@@ -44,16 +44,8 @@ export const formFieldsTable = pgTable(
 
     isRequired: boolean("is_required").default(false),
 
-    password: text("password"),
-
-    deadline: timestamp("deadline"),
-
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").$onUpdate(() => new Date()),
   },
-  (table) => {
-    return {
-      uniqueFormIdAndIndex: unique().on(table.formID, table.index),
-    }
-  }
-)
+  (table) => [unique().on(table.formId, table.index)],
+);

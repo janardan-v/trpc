@@ -21,13 +21,13 @@ export const formsTable = pgTable("forms", {
   visibility: visibilityEnum().default("PUBLIC"),
 
   isPublished: boolean("is_published").default(false),
+  
   isPasswordProtected: boolean("is_password_protected").default(false),
-
   password: text("password"),
 
-  deadline: timestamp("deadline"),
+  deadline: timestamp("deadline").notNull(),
 
-  createdBy: uuid("created_by")
+  adminId: uuid("admin_id")
     .references(() => usersTable.id)
     .notNull(),
 
