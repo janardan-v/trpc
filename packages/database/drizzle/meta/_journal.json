@@ -15,6 +15,20 @@
       "when": 1779282084727,
       "tag": "0001_quiet_the_enforcers",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1779439704146,
+      "tag": "0002_eager_champions",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1779440775786,
+      "tag": "0003_tearful_sauron",
+      "breakpoints": true
     }
   ]
 }
