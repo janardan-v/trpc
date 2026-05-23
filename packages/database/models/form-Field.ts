@@ -35,14 +35,14 @@ export const formFieldsTable = pgTable(
     label: varchar("label", { length: 100 }).notNull(),
     labelKey: varchar("label_key", { length: 100 }).notNull(),
 
-    type: fieldTypesEnum("type").default("TEXT"),
+    type: fieldTypesEnum("type").default("TEXT").notNull(),
 
     description: text("description"),
     placeholder: text("placeholder"),
 
     index: numeric("index", { scale: 2 }).notNull(),
 
-    isRequired: boolean("is_required").default(false),
+    isRequired: boolean("is_required").default(false).notNull(),
 
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").$onUpdate(() => new Date()),

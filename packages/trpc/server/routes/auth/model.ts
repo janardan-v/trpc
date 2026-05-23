@@ -21,6 +21,19 @@ export const loginUserWithEmailAndPasswordOutputModel = z.object({
 })
 
 
+export const updateUserProfileInputModel = z.object({
+    id: z.string().describe("ID of the user"),
+    fullname: z.string().optional(),
+    email: z.email().optional(),
+    password: z.string().min(8).optional(),
+})
+export const updateUserProfileOutputModel = z.object({
+    id: z.uuid().describe("ID of the user"),
+    fullname: z.string().describe("Full name of the user"),
+    email: z.email().describe("Email of the user"),
+    success: z.boolean()
+})
+
 export const logoutUserOutputModel = z.object({
     success: z.boolean()
 })
@@ -35,6 +48,6 @@ export const getLoggedInUserInfoInputModel = z.undefined()
 export const getLoggedInUserInfoOutptModel = z.object({
     id: z.string().describe("ID of the user"),
     fullname: z.string().describe("Full name of the user"),
-    email: z.string().describe("Email of the user"),
+    email: z.email().describe("Email of the user"),
 })
 

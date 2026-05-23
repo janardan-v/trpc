@@ -21,9 +21,9 @@ export const formsTable = pgTable("forms", {
   visibility: visibilityEnum().default("PUBLIC"),
 
   isPublished: boolean("is_published").default(false),
-  
-  isPasswordProtected: boolean("is_password_protected").default(false),
+
   password: text("password"),
+  salt: text("salt"),
 
   deadline: timestamp("deadline").notNull(),
 
@@ -31,6 +31,6 @@ export const formsTable = pgTable("forms", {
     .references(() => usersTable.id)
     .notNull(),
 
-  createdAt: timestamp("created_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").$onUpdate(() => new Date()),
 });

@@ -9,8 +9,8 @@ export const createFormInput = z.object({
     .describe("Visibility of the form")
     .default("PUBLIC"),
   isPublished: z.boolean().describe("Is the form published").default(false),
-  isPasswordProtected: z.boolean().describe("Is the form password protected").default(false),
   password: z.string().describe("Password of the form").optional(),
+  salt: z.string().describe("Salt of the password of form").optional(),
   deadline: z.date().describe("Deadline of the form"),
   adminId: z.uuid().describe("Admin of the form"),
 });
@@ -25,6 +25,7 @@ export type ListFormByAdminIdInputType = z.infer<typeof listFormByAdminIdInput>;
 
 export const listFormsByFormIdInput = z.object({
   formId: z.uuid().describe("Id of the form"),
+  password: z.string().describe("Password of the form").optional(),
 });
 
 export type ListFormsByFormIdInputType = z.infer<typeof listFormsByFormIdInput>;
@@ -35,7 +36,6 @@ export const listFormsByUserIdInput = z.object({
 
 export type ListFormsByUserIdInputType = z.infer<typeof listFormsByUserIdInput>;
 
-// update and delete rhta h
 export const updateFormInput = z.object({
   userId: z.uuid().describe("Id of the user trying to update the field"),
   formId: z.uuid().describe("Id of the form to be updated"),
@@ -46,7 +46,6 @@ export const updateFormInput = z.object({
     .describe("Visibility of the form")
     .default("PUBLIC"),
   isPublished: z.boolean().describe("Is the form published").default(false),
-  isPasswordProtected: z.boolean().describe("Is the form password protected").default(false),
   password: z.string().describe("Password of the form").optional(),
   deadline: z.date().describe("Deadline of the form"),
 });
@@ -60,10 +59,20 @@ export const deleteFormInput = z.object({
 
 export type DeleteFormInputType = z.infer<typeof deleteFormInput>;
 
+export const getPublicFormsInput = z.object({
+  page: z.number().min(1).default(1),
+  limit: z.number().min(1).max(50).default(20),
+  search: z.string().optional(),
+  sortBy: z.enum(["NEWEST", "OLDEST", "DEADLINE"]).default("NEWEST"),
+});
+
+export type GetPublicFormsInputType = z.infer<typeof getPublicFormsInput>;
+
 //#endregion
 
 //#region FORM FIELDS MODELS
 export const createFormFieldsInput = z.object({
+  userId: z.uuid().describe("Id of the user trying to create the field"),
   formId: z.uuid().describe("Id of the parent form"),
   label: z.string().min(4).max(100).describe("Label of the field"),
 
@@ -93,6 +102,7 @@ export const updateFormFieldsInput = z.object({
 export type UpdateFormFieldsInputType = z.infer<typeof updateFormFieldsInput>;
 
 export const getFormFieldsInput = z.object({
+  userId: z.uuid().describe("Id of the user trying to fetch the field"),
   formId: z.uuid().describe("Id of the form to fetch its field"),
 });
 
@@ -111,6 +121,7 @@ export type DeleteFormFieldsInputType = z.infer<typeof deleteFormFieldsInput>;
 export const submitFormInput = z.object({
   formId: z.uuid().describe("Id of the form to be submitted"),
   userId: z.uuid().describe("Id of the user submitting the form").optional(),
+  browserFingerprint: z.string().describe("Fingerprint of the browser").optional(),
   values: z
     .array(
       z.object({

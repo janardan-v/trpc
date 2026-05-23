@@ -1,5 +1,10 @@
-import { db, eq, max, and, asc, desc } from "@repo/database";
-import { formsTable, formSubmissionsTable, formFieldsTable } from "@repo/database/schema";
+import { db, eq, max, and, asc, desc, or, gt, isNull, ilike } from "@repo/database";
+import {
+  formsTable,
+  formSubmissionsTable,
+  formFieldsTable,
+  visibilityEnum,
+} from "@repo/database/schema";
 import {
   type ListFormsByFormIdInputType,
   type ListFormByAdminIdInputType,
@@ -13,6 +18,8 @@ import {
   type GetFormFieldsInputType,
   type SubmitFormInputType,
   type GetSubmissionsByFormIdInputType,
+  GetPublicFormsInputType,
+  getPublicFormsInput,
 } from "./model";
 import {
   createFormInput,
@@ -28,7 +35,8 @@ import {
   submitFormInput,
   getSubmissionsByFormIdInput,
 } from "./model";
-
+import generateHash from "../utils/generateHash";
+import crypto from "crypto";
 const toLabelKey = (label: string) => {
   return label
     .trim()
@@ -59,17 +67,19 @@ class FormServices {
 
     if (!data.success) throw new Error(data.error.message);
 
-    const {
-      title,
-      description,
-      visibility,
-      isPublished,
-      isPasswordProtected,
-      password,
-      deadline,
-      adminId,
-    } = data.data;
+    const { title, description, visibility, isPublished, password, deadline, adminId } = data.data;
 
+    if (visibility === "PRIVATE" && !password) throw new Error("Password is required");
+
+    let salt: string | null = null;
+    let hasPassword: string | null = null;
+    if (visibility === "PRIVATE" && password) {
+      salt = crypto.randomBytes(16).toString("hex");
+      hasPassword = await generateHash(salt, password);
+      console.log(hasPassword);
+    }
+
+    if (deadline && deadline < new Date()) throw new Error("Deadline cannot be in the past");
     const createdForm = await db
       .insert(formsTable)
       .values({
@@ -77,8 +87,8 @@ class FormServices {
         description,
         visibility,
         isPublished,
-        isPasswordProtected,
-        password,
+        password: visibility === "PRIVATE" ? hasPassword : null,
+        salt,
         deadline,
         adminId,
       })
@@ -96,13 +106,22 @@ class FormServices {
     };
   }
 
-  public async listFormByAdminId(payload: ListFormByAdminIdInputType) {
+  public async listFormsByAdminId(payload: ListFormByAdminIdInputType) {
     const data = listFormByAdminIdInput.safeParse(payload);
 
     if (!data.success) throw new Error(data.error.message);
 
     const forms = await db
-      .select({})
+      .select({
+        id: formsTable.id,
+        title: formsTable.title,
+        description: formsTable.description,
+        deadline: formsTable.deadline,
+        createdAt: formsTable.createdAt,
+        updatedAt: formsTable.updatedAt,
+        visibility: formsTable.visibility,
+        isPublished: formsTable.isPublished,
+      })
       .from(formsTable)
       .where(eq(formsTable.adminId, data.data.adminId));
 
@@ -113,11 +132,11 @@ class FormServices {
     };
   }
 
-  public async listFormsByFormId(payload: ListFormsByFormIdInputType) {
+  public async listFormByFormId(payload: ListFormsByFormIdInputType) {
     const data = listFormsByFormIdInput.safeParse(payload);
 
     if (!data.success) throw new Error(data.error.message);
-    const { formId } = data.data;
+    const { formId, password } = data.data;
 
     const rows = await db
       .select({
@@ -127,10 +146,14 @@ class FormServices {
         createdAt: formsTable.createdAt,
         updatedAt: formsTable.updatedAt,
         deadline: formsTable.deadline,
+        hashpassword: formsTable.password,
+        salt: formsTable.salt,
+        visibility: formsTable.visibility,
+        isPublished: formsTable.isPublished,
         field: {
           fieldId: formFieldsTable.id,
-          lable: formFieldsTable.label,
-          lableKey: formFieldsTable.labelKey,
+          label: formFieldsTable.label,
+          labelKey: formFieldsTable.labelKey,
           type: formFieldsTable.type,
           description: formFieldsTable.description,
           placeholder: formFieldsTable.placeholder,
@@ -145,7 +168,30 @@ class FormServices {
 
     if (!rows || rows.length === 0) throw new Error("No forms found");
 
-    const { id, title, description, createdAt, updatedAt, deadline } = rows[0]!;
+    const {
+      id,
+      title,
+      description,
+      createdAt,
+      updatedAt,
+      deadline,
+      hashpassword,
+      salt,
+      visibility,
+      isPublished,
+    } = rows[0]!;
+
+    if (visibility === "PRIVATE") {
+      if (!password) throw new Error("Password is required");
+      else {
+        const userPassword = await generateHash(salt, password);
+        if (userPassword !== hashpassword) throw new Error("Incorrect password");
+      }
+    }
+    if (!isPublished) throw new Error("Form is not published");
+
+    if (deadline && deadline < new Date()) throw new Error("Form is closed");
+
     const field = rows
       .filter((row) => row.field?.fieldId !== null)
       .map((row) => row.field as NonNullable<typeof row.field>);
@@ -166,15 +212,24 @@ class FormServices {
 
     if (!data.success) throw new Error(data.error.message);
 
-    const forms = await db
-      .select()
+    const rows = await db
+      .select({
+        submissionId: formSubmissionsTable.id,
+        submittedAt: formSubmissionsTable.createdAt,
+        form: {
+          formId: formsTable.id,
+          title: formsTable.title,
+          description: formsTable.description,
+          deadline: formsTable.deadline,
+        },
+      })
       .from(formSubmissionsTable)
-      .where(eq(formSubmissionsTable.submiitedBy, data.data.userId));
-
-    if (forms.length === 0) throw new Error("No forms found");
+      .innerJoin(formsTable, eq(formSubmissionsTable.formId, formsTable.id))
+      .where(eq(formSubmissionsTable.submittedBy, data.data.userId))
+      .orderBy(desc(formSubmissionsTable.createdAt));
 
     return {
-      forms,
+      history: rows,
     };
   }
 
@@ -183,17 +238,8 @@ class FormServices {
 
     if (!data.success) throw new Error(data.error.message);
 
-    const {
-      userId,
-      formId,
-      title,
-      visibility,
-      description,
-      isPublished,
-      isPasswordProtected,
-      password,
-      deadline,
-    } = data.data;
+    const { userId, formId, title, visibility, description, isPublished, password, deadline } =
+      data.data;
 
     const formsFromDB = await db.select().from(formsTable).where(eq(formsTable.id, formId));
 
@@ -208,7 +254,6 @@ class FormServices {
         visibility,
         description,
         isPublished,
-        isPasswordProtected,
         password,
         deadline,
       })
@@ -247,6 +292,64 @@ class FormServices {
     };
   }
 
+  public async getPublicForms(payload: GetPublicFormsInputType) {
+    const data = getPublicFormsInput.safeParse(payload);
+
+    if (!data.success) throw new Error(data.error.message);
+    const { limit, page, sortBy, search } = data.data;
+    const offset = (page - 1) * limit;
+    const filters = [
+      eq(formsTable.visibility, "PUBLIC"),
+      eq(formsTable.isPublished, true),
+      or(isNull(formsTable.deadline), gt(formsTable.deadline, new Date())),
+    ];
+    if (search) {
+      filters.push(
+        or(
+          ilike(formsTable.title, `%${search}%`),
+
+          ilike(formsTable.description, `%${search}%`),
+        ),
+      );
+    }
+
+    let ordering;
+    switch (sortBy) {
+      case "OLDEST":
+        ordering = asc(formsTable.createdAt);
+        break;
+      case "DEADLINE":
+        ordering = asc(formsTable.deadline);
+        break;
+      case "NEWEST":
+      default:
+        ordering = desc(formsTable.createdAt);
+    }
+    const result = await db
+      .select({
+        id: formsTable.id,
+        title: formsTable.title,
+        description: formsTable.description,
+        deadline: formsTable.deadline,
+        createdAt: formsTable.createdAt,
+      })
+      .from(formsTable)
+      .where(and(...filters))
+      .orderBy(ordering)
+      .limit(limit + 1)
+      .offset(offset);
+
+    return {
+      forms: result.slice(0, limit),
+
+      pagination: {
+        page,
+        limit,
+        hasMore: result.length > limit,
+      },
+    };
+  }
+
   //#endregion
 
   //#region  FORM FIELDS OPERATIONS
@@ -256,7 +359,12 @@ class FormServices {
     if (!data.success) throw new Error(data.error.message);
     const { data: feildData } = data;
 
-    const { formId, label, type, description, placeholder, isRequired } = feildData;
+    const { userId, formId, label, type, description, placeholder, isRequired } = feildData;
+
+    const adminId = await db.select({ adminId: formsTable.adminId }).from(formsTable);
+
+    if (userId !== adminId[0]?.adminId) throw new Error("Unauthorized");
+
     const labelKey = toLabelKey(label);
 
     const index = await this.getNextIndex(formId);
@@ -377,16 +485,18 @@ class FormServices {
 
     if (!data.success) throw new Error(data.error.message);
 
-    const { formId } = data.data;
+    const { formId, userId } = data.data;
 
     const form = await db
       .select({
         id: formsTable.id,
+        adminId: formsTable.adminId,
       })
       .from(formsTable)
       .where(eq(formsTable.id, formId));
 
     if (!form[0]) throw new Error("Form not found");
+    if (userId !== form[0].adminId) throw new Error("Unauthorized to access fields");
 
     const fields = await db
       .select({
@@ -417,14 +527,90 @@ class FormServices {
 
     if (!data.success) throw new Error(data.error.message);
 
-    const { formId, userId, values } = data.data;
+    const { formId, userId, values, browserFingerprint } = data.data;
+
+    //check if form exist or not, published or not and deadline is not passed yet
+    const form = await db
+      .select({
+        id: formsTable.id,
+        isPublished: formsTable.isPublished,
+        deadline: formsTable.deadline,
+      })
+      .from(formsTable)
+      .where(eq(formsTable.id, formId));
+
+    if (!form[0]) throw new Error("Form not found");
+    if (!form[0].isPublished) throw new Error("Form not published");
+    if (form[0].deadline && form[0].deadline < new Date()) throw new Error("Form closed");
+
+    //valdiate fields belong to same form only
+    const fields = await db
+      .select({
+        id: formFieldsTable.id,
+        isRequired: formFieldsTable.isRequired,
+      })
+      .from(formFieldsTable)
+      .where(eq(formFieldsTable.formId, formId));
+
+    const valid = new Set(fields.map((f) => f.id));
+    for (const value of values) {
+      if (!valid.has(value.formFieldId)) throw new Error("Invalid field");
+    }
+
+    // duplicate fields
+    const seen = new Set<string>();
+
+    for (const value of values) {
+      if (seen.has(value.formFieldId)) {
+        throw new Error("Duplicate field submission");
+      }
+
+      seen.add(value.formFieldId);
+    }
+
+    //validate required fields are sent necessarily
+    const submitted = new Map(values.map((v) => [v.formFieldId, v.value]));
+
+    for (const field of fields) {
+      if (field.isRequired && !submitted.get(field.id)?.trim()) {
+        throw new Error("Required field missing");
+      }
+    }
+
+    //check unique submissions
+    let alreadySubmitted;
+    if (userId) {
+      alreadySubmitted = await db
+        .select()
+        .from(formSubmissionsTable)
+        .where(
+          and(
+            eq(formSubmissionsTable.formId, formId),
+            eq(formSubmissionsTable.submittedBy, userId),
+          ),
+        );
+    } else {
+      if (!browserFingerprint) throw new Error("Browser fingerprint not provided");
+
+      alreadySubmitted = await db
+        .select()
+        .from(formSubmissionsTable)
+        .where(
+          and(
+            eq(formSubmissionsTable.formId, formId),
+            eq(formSubmissionsTable.browserFingerprint, browserFingerprint),
+          ),
+        );
+    }
+    if (alreadySubmitted.length > 0) throw new Error("You have already submitted this form");
 
     const result = await db
       .insert(formSubmissionsTable)
       .values({
         formId,
         values,
-        submiitedBy: userId ? userId : null,
+        submittedBy: userId ? userId : null,
+        browserFingerprint,
       })
       .returning({
         id: formSubmissionsTable.id,
@@ -447,32 +633,35 @@ class FormServices {
     if (!data.success) throw new Error(data.error.message);
 
     const { formId, adminId } = data.data;
+    const form = await db
+      .select({
+        id: formsTable.id,
+      })
+      .from(formsTable)
+      .where(
+        and(
+          eq(formsTable.id, formId),
+
+          eq(formsTable.adminId, adminId),
+        ),
+      );
+
+    if (!form[0]) {
+      throw new Error("Unauthorized");
+    }
 
     const submissions = await db
       .select({
         id: formSubmissionsTable.id,
-
         formId: formSubmissionsTable.formId,
-
         values: formSubmissionsTable.values,
-
-        submittedBy: formSubmissionsTable.submiitedBy,
-
+        submittedBy: formSubmissionsTable.submittedBy,
         createdAt: formSubmissionsTable.createdAt,
-
         updatedAt: formSubmissionsTable.updatedAt,
       })
       .from(formSubmissionsTable)
-
       .innerJoin(formsTable, eq(formSubmissionsTable.formId, formsTable.id))
-
-      .where(
-        and(
-          eq(formSubmissionsTable.formId, formId),
-
-          eq(formsTable.adminId, adminId),
-        ),
-      )
+      .where(and(eq(formSubmissionsTable.formId, formId), eq(formsTable.adminId, adminId)))
       .orderBy(desc(formSubmissionsTable.createdAt));
 
     return {

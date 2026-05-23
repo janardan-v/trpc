@@ -5,7 +5,9 @@ import {
   loginUserWithEmailAndPasswordInputModel,
   loginUserWithEmailAndPasswordOutputModel,
   logoutUserOutputModel,
-  refreshTokenOutputModel
+  refreshTokenOutputModel,
+  updateUserProfileInputModel,
+  updateUserProfileOutputModel,
 } from "./model.js";
 import { userService } from "../../services/index.js";
 import { authenticatedProcedure, publicProcedure, router } from "../../trpc";
@@ -21,18 +23,22 @@ export const authRouter = router({
       openapi: {
         method: "POST",
         path: getPath("/create-user-with-email-and-password"),
-        tags: TAGS
-      }
+        tags: TAGS,
+      },
     })
     .input(createUserWithEmailAndPasswordInputModel)
     .output(createUserWithEmailAndPasswordOutputModel)
     .mutation(async ({ input, ctx }) => {
-      const { fullname, email, password } = input
-      const { id, verificationToken } = await userService.createUserWithEmailAndPassword({ fullname, email, password })
+      const { fullname, email, password } = input;
+      const { id, verificationToken } = await userService.createUserWithEmailAndPassword({
+        fullname,
+        email,
+        password,
+      });
 
-      setAuthenticationCookie(ctx, verificationToken, "verification-Token")
+      setAuthenticationCookie(ctx, verificationToken, "verification-Token");
       return {
-        id
+        id,
       };
     }),
 
@@ -41,85 +47,102 @@ export const authRouter = router({
       openapi: {
         method: "POST",
         path: getPath("/login-with-email-and-password"),
-        tags: TAGS
-      }
+        tags: TAGS,
+      },
     })
     .input(loginUserWithEmailAndPasswordInputModel)
     .output(loginUserWithEmailAndPasswordOutputModel)
     .mutation(async ({ input, ctx }) => {
-      const { id, accessToken, refreshToken } = await userService.loginWithEmailAndPassword(input)
+      const { id, accessToken, refreshToken } = await userService.loginWithEmailAndPassword(input);
 
-      setAuthenticationCookie(ctx, accessToken, "access-Token")
-      setAuthenticationCookie(ctx, refreshToken, "refresh-Token")
+      setAuthenticationCookie(ctx, accessToken, "access-Token");
+      setAuthenticationCookie(ctx, refreshToken, "refresh-Token");
 
       return {
-        id
+        id,
       };
     }),
 
-  logoutUser: publicProcedure.meta({
-    openapi: {
-      method: "POST",
-      path: getPath("/logout-user"),
-      tags: TAGS
-    }
-  })
-    .output(logoutUserOutputModel)
-    .mutation(async ({ ctx }) => {
-      const accessToken = ctx.getCookie("access-Token")
-      const refreshToken = ctx.getCookie("refresh-Token")
-      const result = await userService.logoutUser({ accessToken, refreshToken })
-      ctx.clearCookie("access-Token")
-      ctx.clearCookie("refresh-Token")
+  updateProfile: authenticatedProcedure
+
+    .input(updateUserProfileInputModel)
+    .output(updateUserProfileOutputModel)
+    .mutation(async ({ input, ctx }) => {
+      const result =  userService.updateUserProfile({
+        ...input,
+        userId: ctx.user.id,
+      });
 
       return result
     }),
-  refreshTokenService: publicProcedure.meta({
-    openapi: {
-      method: "POST",
-      path: getPath("/refresh-token"),
-      tags: TAGS
-    }
-  })
+
+  logoutUser: publicProcedure
+    .meta({
+      openapi: {
+        method: "POST",
+        path: getPath("/logout-user"),
+        tags: TAGS,
+      },
+    })
+    .output(logoutUserOutputModel)
+    .mutation(async ({ ctx }) => {
+      const accessToken = ctx.getCookie("access-Token");
+      const refreshToken = ctx.getCookie("refresh-Token");
+      const result = await userService.logoutUser({ accessToken, refreshToken });
+      ctx.clearCookie("access-Token");
+      ctx.clearCookie("refresh-Token");
+
+      return result;
+    }),
+  refreshTokenService: publicProcedure
+    .meta({
+      openapi: {
+        method: "POST",
+        path: getPath("/refresh-token"),
+        tags: TAGS,
+      },
+    })
     .output(refreshTokenOutputModel)
     .mutation(async ({ ctx }) => {
-      const refreshToken = ctx.getCookie("refresh-Token")
+      const refreshToken = ctx.getCookie("refresh-Token");
 
       if (!refreshToken) {
-        throw new Error("No refresh token found")
+        throw new Error("No refresh token found");
       }
-      userService.refreshTokenService({ refreshToken })
-      const input = ctx.getCookie("refresh-Token")
-      const { id, accessToken, refreshToken: newRefreshToken } = await userService.refreshTokenService({ refreshToken: input })
+      userService.refreshTokenService({ refreshToken });
+      const input = ctx.getCookie("refresh-Token");
+      const {
+        id,
+        accessToken,
+        refreshToken: newRefreshToken,
+      } = await userService.refreshTokenService({ refreshToken: input });
 
-      ctx.createCookie("refresh-Token", newRefreshToken)
-      ctx.createCookie("access-Token", accessToken)
+      ctx.createCookie("refresh-Token", newRefreshToken);
+      ctx.createCookie("access-Token", accessToken);
 
       return {
         id,
         accessToken,
-        refreshToken: newRefreshToken
-      }
+        refreshToken: newRefreshToken,
+      };
     }),
+
   getLoggedInUserInfo: authenticatedProcedure
     .meta({
       openapi: {
         method: "GET",
         path: getPath("/get-logged-in-user-info"),
-        protect:true
-      }
+        protect: true,
+      },
     })
     .output(getLoggedInUserInfoOutptModel)
     .query(async ({ ctx }) => {
-
-      const { id, fullname, email } = await userService.getUserInfoById(ctx.user.id)
+      const { id, fullname, email } = await userService.getUserInfoById(ctx.user.id);
 
       return {
         id,
         fullname,
-        email
-      }
-    })
-})
-
-
+        email,
+      };
+    }),
+});
