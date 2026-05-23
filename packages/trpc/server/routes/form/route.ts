@@ -13,11 +13,9 @@ import {
   getPublicFormsOutputModel,
   getSubmissionsByFormIdInputModel,
   getSubmissionsByFormIdOutputModel,
-  listFormByAdminIdInputModel,
   listFormByAdminIdOutputModel,
   listFormsByFormIdInputModel,
   listFormsByFormIdOutputModel,
-  listFormsByUserIdInputModel,
   listFormsByUserIdOutputModel,
   submitFormInputModel,
   submitFormOutputModel,
@@ -82,7 +80,6 @@ export const formRouter = router({
         tags: TAGS,
       },
     })
-    .input(listFormByAdminIdInputModel)
     .output(listFormByAdminIdOutputModel)
     .query(async ({ input, ctx }) => {
       const { id } = ctx.user;
@@ -124,7 +121,6 @@ export const formRouter = router({
         tags: TAGS,
       },
     })
-    .input(listFormsByUserIdInputModel)
     .output(listFormsByUserIdOutputModel)
     .query(async ({ input, ctx }) => {
       const { id } = ctx.user;
@@ -200,7 +196,7 @@ export const formRouter = router({
     .meta({
       openapi: {
         method: "POST",
-        path: getPath("/create-form-fields"),
+        path: getPath("/update-form-fields"),
         tags: TAGS,
       },
     })
@@ -220,7 +216,7 @@ export const formRouter = router({
     .meta({
       openapi: {
         method: "POST",
-        path: getPath("/create-form-fields"),
+        path: getPath("/get-form-fields"),
         tags: TAGS,
       },
     })
@@ -240,7 +236,7 @@ export const formRouter = router({
     .meta({
       openapi: {
         method: "POST",
-        path: getPath("/create-form-fields"),
+        path: getPath("/delete-form-fields"),
         tags: TAGS,
       },
     })
@@ -260,7 +256,7 @@ export const formRouter = router({
     .meta({
       openapi: {
         method: "POST",
-        path: getPath("/submissions-by-form"),
+        path: getPath("/submissions-by-form-id"),
         tags: TAGS,
       },
     })
@@ -306,7 +302,7 @@ export const formRouter = router({
     })
     .input(getPublicFormsInputModel)
     .output(getPublicFormsOutputModel)
-    .query(async ({ input}) => {
+    .query(async ({ input }) => {
       const { page, limit, search, sortBy } = input;
       const result = await formService.getPublicForms({
         page,

@@ -22,7 +22,6 @@ export const loginUserWithEmailAndPasswordOutputModel = z.object({
 
 
 export const updateUserProfileInputModel = z.object({
-    id: z.string().describe("ID of the user"),
     fullname: z.string().optional(),
     email: z.email().optional(),
     password: z.string().min(8).optional(),
@@ -44,7 +43,6 @@ export const refreshTokenOutputModel = z.object({
     accessToken: z.string().describe("Access Token of the user")
 })
 
-export const getLoggedInUserInfoInputModel = z.undefined()
 export const getLoggedInUserInfoOutptModel = z.object({
     id: z.string().describe("ID of the user"),
     fullname: z.string().describe("Full name of the user"),

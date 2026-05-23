@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { boolean, z } from "zod";
 
 // #region FORM
 export const createFormInputModel = z.object({
@@ -20,7 +20,6 @@ export const createFormOutputModel = z.object({
   adminId: z.uuid().describe("Admin of the form"),
 });
 
-export const listFormByAdminIdInputModel = z.undefined();
 export const listFormByAdminIdOutputModel = z.object({
   forms: z.array(
     z.object({
@@ -69,7 +68,6 @@ export const listFormsByFormIdOutputModel = z.object({
     .describe("Fields of the form"),
 });
 
-export const listFormsByUserIdInputModel = z.undefined();
 export const listFormsByUserIdOutputModel = z.array(
   z.object({
     submissionId: z.uuid().describe("Id of the submission"),
@@ -167,7 +165,7 @@ export const updateFormFieldsInputModel = z.object({
 export const updateFormFieldsOutputModel = z.object({
   fieldId: z.uuid().describe("Id of the created field"),
   formId: z.uuid().describe("Id of the form to which the field belongs"),
-  success: true,
+  success: z.boolean()
 });
 
 export const getFormFieldsInputModel = z.object({
@@ -196,7 +194,7 @@ export const deleteFormFieldsInputModel = z.object({
 export const deleteFormFieldsOutputModel = z.object({
   fieldId: z.uuid().describe("Id of the created field"),
   formId: z.uuid().describe("Id of the form to which the field belongs"),
-  success: true,
+  success: z.boolean(),
 });
 
 // #endregion

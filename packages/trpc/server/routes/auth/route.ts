@@ -64,16 +64,22 @@ export const authRouter = router({
     }),
 
   updateProfile: authenticatedProcedure
-
+    .meta({
+      openapi: {
+        method: "PUT",
+        path: getPath("/update-profile"),
+        protect: true,
+      },
+    })
     .input(updateUserProfileInputModel)
     .output(updateUserProfileOutputModel)
     .mutation(async ({ input, ctx }) => {
-      const result =  userService.updateUserProfile({
+      const result = userService.updateUserProfile({
         ...input,
         userId: ctx.user.id,
       });
 
-      return result
+      return result;
     }),
 
   logoutUser: publicProcedure
@@ -94,6 +100,7 @@ export const authRouter = router({
 
       return result;
     }),
+
   refreshTokenService: publicProcedure
     .meta({
       openapi: {
@@ -109,13 +116,11 @@ export const authRouter = router({
       if (!refreshToken) {
         throw new Error("No refresh token found");
       }
-      userService.refreshTokenService({ refreshToken });
-      const input = ctx.getCookie("refresh-Token");
       const {
         id,
         accessToken,
         refreshToken: newRefreshToken,
-      } = await userService.refreshTokenService({ refreshToken: input });
+      } = await userService.refreshTokenService({ refreshToken });
 
       ctx.createCookie("refresh-Token", newRefreshToken);
       ctx.createCookie("access-Token", accessToken);
