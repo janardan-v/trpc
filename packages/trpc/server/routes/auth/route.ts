@@ -1,3 +1,4 @@
+import { TRPCError } from "@trpc/server";
 import {
   createUserWithEmailAndPasswordInputModel,
   createUserWithEmailAndPasswordOutputModel,
@@ -29,17 +30,24 @@ export const authRouter = router({
     .input(createUserWithEmailAndPasswordInputModel)
     .output(createUserWithEmailAndPasswordOutputModel)
     .mutation(async ({ input, ctx }) => {
-      const { fullname, email, password } = input;
-      const { id, verificationToken } = await userService.createUserWithEmailAndPassword({
-        fullname,
-        email,
-        password,
-      });
+      try {
+        const { fullname, email, password } = input;
+        const { id, verificationToken } = await userService.createUserWithEmailAndPassword({
+          fullname,
+          email,
+          password,
+        });
 
-      setAuthenticationCookie(ctx, verificationToken, "verification-Token");
-      return {
-        id,
-      };
+        setAuthenticationCookie(ctx, verificationToken, "verification-Token");
+        return {
+          id,
+        };
+      } catch (error) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: error instanceof Error ? error.message : "Failed to create user",
+        });
+      }
     }),
 
   loginWithEmailAndPassword: publicProcedure
@@ -53,14 +61,21 @@ export const authRouter = router({
     .input(loginUserWithEmailAndPasswordInputModel)
     .output(loginUserWithEmailAndPasswordOutputModel)
     .mutation(async ({ input, ctx }) => {
-      const { id, accessToken, refreshToken } = await userService.loginWithEmailAndPassword(input);
+      try {
+        const { id, accessToken, refreshToken } = await userService.loginWithEmailAndPassword(input);
 
-      setAuthenticationCookie(ctx, accessToken, "access-Token");
-      setAuthenticationCookie(ctx, refreshToken, "refresh-Token");
+        setAuthenticationCookie(ctx, accessToken, "access-Token");
+        setAuthenticationCookie(ctx, refreshToken, "refresh-Token");
 
-      return {
-        id,
-      };
+        return {
+          id,
+        };
+      } catch (error) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: error instanceof Error ? error.message : "Login failed",
+        });
+      }
     }),
 
   updateProfile: authenticatedProcedure
@@ -69,17 +84,25 @@ export const authRouter = router({
         method: "PUT",
         path: getPath("/update-profile"),
         protect: true,
+        tags: TAGS,
       },
     })
     .input(updateUserProfileInputModel)
     .output(updateUserProfileOutputModel)
     .mutation(async ({ input, ctx }) => {
-      const result = userService.updateUserProfile({
-        ...input,
-        userId: ctx.user.id,
-      });
+      try {
+        const result = await userService.updateUserProfile({
+          ...input,
+          userId: ctx.user.id,
+        });
 
-      return result;
+        return result;
+      } catch (error) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: error instanceof Error ? error.message : "Failed to update profile",
+        });
+      }
     }),
 
   logoutUser: publicProcedure
@@ -92,13 +115,20 @@ export const authRouter = router({
     })
     .output(logoutUserOutputModel)
     .mutation(async ({ ctx }) => {
-      const accessToken = ctx.getCookie("access-Token");
-      const refreshToken = ctx.getCookie("refresh-Token");
-      const result = await userService.logoutUser({ accessToken, refreshToken });
-      ctx.clearCookie("access-Token");
-      ctx.clearCookie("refresh-Token");
+      try {
+        const accessToken = ctx.getCookie("access-Token");
+        const refreshToken = ctx.getCookie("refresh-Token");
+        const result = await userService.logoutUser({ accessToken, refreshToken });
+        ctx.clearCookie("access-Token");
+        ctx.clearCookie("refresh-Token");
 
-      return result;
+        return result;
+      } catch (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error instanceof Error ? error.message : "Failed to logout",
+        });
+      }
     }),
 
   refreshTokenService: publicProcedure
@@ -111,25 +141,38 @@ export const authRouter = router({
     })
     .output(refreshTokenOutputModel)
     .mutation(async ({ ctx }) => {
-      const refreshToken = ctx.getCookie("refresh-Token");
+      try {
+        const refreshToken = ctx.getCookie("refresh-Token");
 
-      if (!refreshToken) {
-        throw new Error("No refresh token found");
+        if (!refreshToken) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "No refresh token found",
+          });
+        }
+        const {
+          id,
+          accessToken,
+          refreshToken: newRefreshToken,
+        } = await userService.refreshTokenService({ refreshToken });
+
+        ctx.createCookie("refresh-Token", newRefreshToken);
+        ctx.createCookie("access-Token", accessToken);
+
+        return {
+          id,
+          accessToken,
+          refreshToken: newRefreshToken,
+        };
+      } catch (error) {
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: error instanceof Error ? error.message : "Failed to refresh token",
+        });
       }
-      const {
-        id,
-        accessToken,
-        refreshToken: newRefreshToken,
-      } = await userService.refreshTokenService({ refreshToken });
-
-      ctx.createCookie("refresh-Token", newRefreshToken);
-      ctx.createCookie("access-Token", accessToken);
-
-      return {
-        id,
-        accessToken,
-        refreshToken: newRefreshToken,
-      };
     }),
 
   getLoggedInUserInfo: authenticatedProcedure
@@ -137,17 +180,25 @@ export const authRouter = router({
       openapi: {
         method: "GET",
         path: getPath("/get-logged-in-user-info"),
+        tags: TAGS,
         protect: true,
       },
     })
     .output(getLoggedInUserInfoOutptModel)
     .query(async ({ ctx }) => {
-      const { id, fullname, email } = await userService.getUserInfoById(ctx.user.id);
+      try {
+        const { id, fullname, email } = await userService.getUserInfoById(ctx.user.id);
 
-      return {
-        id,
-        fullname,
-        email,
-      };
+        return {
+          id,
+          fullname,
+          email,
+        };
+      } catch (error) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: error instanceof Error ? error.message : "User not found",
+        });
+      }
     }),
 });

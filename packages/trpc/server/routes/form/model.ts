@@ -11,7 +11,7 @@ export const createFormInputModel = z.object({
   isPublished: z.boolean().describe("Is the form published").default(false),
   isPasswordProtected: z.boolean().describe("Is the form password protected").default(false),
   password: z.string().describe("Password of the form").optional(),
-  deadline: z.date().describe("Deadline of the form"),
+  deadline: z.coerce.date().describe("Deadline of the form"),
   //   adminId: z.uuid().describe("Admin of the form"),  to be send from middleWare
 });
 
@@ -31,9 +31,9 @@ export const listFormByAdminIdOutputModel = z.object({
         .nullable()
         .describe("Visibility of the form"),
       isPublished: z.boolean().nullable().describe("Is the form published"),
-      deadline: z.date().describe("Deadline of the form"),
-      createdAt: z.date().nullable().describe("Time of creation of the form"),
-      updatedAt: z.date().nullable().describe("Time of updation of the form"),
+      deadline: z.coerce.date().describe("Deadline of the form"),
+      createdAt: z.coerce.date().nullable().describe("Time of creation of the form"),
+      updatedAt: z.coerce.date().nullable().describe("Time of updation of the form"),
     }),
   ),
 });
@@ -46,9 +46,9 @@ export const listFormsByFormIdOutputModel = z.object({
   title: z.string().describe("Title of the form"),
   description: z.string().nullable().describe("Description of the form"),
 
-  deadline: z.date().describe("Deadline of the form"),
-  createdAt: z.date().nullable().describe("Time of creation of the form"),
-  updatedAt: z.date().nullable().describe("Time of updation of the form"),
+  deadline: z.coerce.date().describe("Deadline of the form"),
+  createdAt: z.coerce.date().nullable().describe("Time of creation of the form"),
+  updatedAt: z.coerce.date().nullable().describe("Time of updation of the form"),
 
   field: z
     .array(
@@ -63,6 +63,20 @@ export const listFormsByFormIdOutputModel = z.object({
         placeholder: z.string().nullable().describe("Placeholder of the field"),
         index: z.string().describe("Index of the field"),
         isRequired: z.boolean().describe("Is the field required"),
+        options: z
+          .array(
+            z.object({
+              id: z.string(),
+              label: z.string(),
+              value: z.string(),
+            }),
+          )
+          .nullable()
+          .optional(),
+        checkboxLabel: z.string().nullable().optional(),
+        ratingMax: z.number().nullable().optional(),
+        minValue: z.number().nullable().optional(),
+        maxValue: z.number().nullable().optional(),
       }),
     )
     .describe("Fields of the form"),
@@ -72,12 +86,12 @@ export const listFormsByUserIdOutputModel = z.array(
   z.object({
     submissionId: z.uuid().describe("Id of the submission"),
 
-    submittedAt: z.date().describe("Time of submission").nullable(),
+    submittedAt: z.coerce.date().describe("Time of submission").nullable(),
     form: z.object({
       formId: z.uuid().describe("Id of the form"),
       title: z.string().describe("Title of the form"),
       description: z.string().describe("Description of the form").nullable(),
-      deadline: z.date().describe("Deadline of the form"),
+      deadline: z.coerce.date().describe("Deadline of the form"),
     }),
   }),
 );
@@ -93,7 +107,7 @@ export const updateFormInputModel = z.object({
     .default("PUBLIC"),
   isPublished: z.boolean().describe("Is the form published").default(false),
   password: z.string().describe("Password of the form").optional(),
-  deadline: z.date().describe("Deadline of the form"),
+  deadline: z.coerce.date().describe("Deadline of the form"),
 });
 export const updateFormOutputModel = z.object({
   formId: z.string().describe("Id of the updated form"),
@@ -120,8 +134,8 @@ export const getPublicFormsOutputModel = z.object({
       id: z.uuid().describe("Id of the form"),
       title: z.string().describe("Title of the form"),
       description: z.string().describe("Description of the form").nullable(),
-      deadline: z.date().describe("Deadline of the form"),
-      createdAt: z.date().describe("Time of creation of the form"),
+      deadline: z.coerce.date().describe("Deadline of the form"),
+      createdAt: z.coerce.date().describe("Time of creation of the form"),
     }),
   ),
 
@@ -145,6 +159,20 @@ export const createFormFieldsInputModel = z.object({
   placeholder: z.string().max(100).describe("Placeholder of the field").optional(),
 
   isRequired: z.boolean().describe("Is the field required").default(false),
+
+  options: z
+    .array(
+      z.object({
+        id: z.string(),
+        label: z.string(),
+        value: z.string(),
+      }),
+    )
+    .optional(),
+  checkboxLabel: z.string().max(150).optional(),
+  ratingMax: z.number().min(1).max(10).optional(),
+  minValue: z.number().optional(),
+  maxValue: z.number().optional(),
 });
 export const createFormFieldsOutputModel = z.object({
   fieldId: z.uuid().describe("Id of the created field"),
@@ -161,11 +189,25 @@ export const updateFormFieldsInputModel = z.object({
   placeholder: z.string().max(100).describe("Placeholder of the field").optional(),
 
   isRequired: z.boolean().describe("Is the field required").default(false),
+
+  options: z
+    .array(
+      z.object({
+        id: z.string(),
+        label: z.string(),
+        value: z.string(),
+      }),
+    )
+    .optional(),
+  checkboxLabel: z.string().max(150).optional(),
+  ratingMax: z.number().min(1).max(10).optional(),
+  minValue: z.number().optional(),
+  maxValue: z.number().optional(),
 });
 export const updateFormFieldsOutputModel = z.object({
   fieldId: z.uuid().describe("Id of the created field"),
   formId: z.uuid().describe("Id of the form to which the field belongs"),
-  success: z.boolean()
+  success: z.boolean(),
 });
 
 export const getFormFieldsInputModel = z.object({
@@ -183,8 +225,22 @@ export const getFormFieldsOutputModel = z.array(
     placeholder: z.string().describe("Pxlaceholder of the field").nullable(),
     isRequired: z.boolean().describe("Is the field required").default(false),
     index: z.string().describe("Partial Index of the field to sort"),
-    createdAt: z.date().describe("Time of creation of the field").nullable(),
-    updatedAt: z.date().describe("Time of updation of the field").nullable(),
+    createdAt: z.coerce.date().describe("Time of creation of the field").nullable(),
+    updatedAt: z.coerce.date().describe("Time of updation of the field").nullable(),
+    options: z
+      .array(
+        z.object({
+          id: z.string(),
+          label: z.string(),
+          value: z.string(),
+        }),
+      )
+      .nullable()
+      .optional(),
+    checkboxLabel: z.string().nullable().optional(),
+    ratingMax: z.number().nullable().optional(),
+    minValue: z.number().nullable().optional(),
+    maxValue: z.number().nullable().optional(),
   }),
 );
 
@@ -203,15 +259,26 @@ export const deleteFormFieldsOutputModel = z.object({
 
 export const submitFormInputModel = z.object({
   formId: z.uuid().describe("Id of the form to be submitted"),
-  userId: z.uuid().describe("Id of the user submitting the form").nullable().optional(),
-  browserFingerprint: z.string().describe("Fingerprint of the browser").optional(),
-  values: z.array(
-    z.object({
-      formFieldId: z.uuid().describe("Id of the field"),
-      value: z.string().describe("Value of the field"),
-    }),
-  ),
+
+  userId: z.uuid().nullable().optional().describe("Id of the user submitting the form"),
+
+  browserFingerprint: z.string().optional().describe("Fingerprint of the browser"),
+
+  values: z
+    .array(
+      z.object({
+        formFieldId: z.uuid().describe("Id of the field"),
+
+        value: z
+          .union([z.string(), z.number(), z.boolean(), z.array(z.string())])
+
+          .describe("Submitted value"),
+      }),
+    )
+
+    .min(1, "At least one field required"),
 });
+
 export const submitFormOutputModel = z.object({
   id: z.uuid().describe("Id of the submission"),
   formId: z.uuid().describe("Id of the form"),
@@ -221,23 +288,58 @@ export const submitFormOutputModel = z.object({
 export const getSubmissionsByFormIdInputModel = z.object({
   formId: z.uuid().describe("Id of the form to be submitted"),
 });
+export const submissionValueSchema = z.union([
+  z.string(),
+
+  z.number(),
+
+  z.boolean(),
+
+  z.array(z.string()),
+]);
+
+export const formSubmissionValueModel = z.object({
+  formFieldId: z.uuid().describe("Id of the form field"),
+
+  value: submissionValueSchema.describe("Submitted field value"),
+});
+
 export const getSubmissionsByFormIdOutputModel = z.object({
   submissions: z.array(
     z.object({
-      id: z.uuid().describe("Id of the submission"),
-      formId: z.uuid().describe("Id of the form"),
+      id: z.uuid().describe("Id of submission"),
+
+      formId: z.uuid().describe("Id of form"),
+
       values: z
-        .array(
-          z.object({
-            formFieldId: z.uuid().describe("Id of the form field"),
-            value: z.string().describe("Submitted value for the field"),
-          }),
-        )
+        .array(formSubmissionValueModel)
+
         .nullable()
-        .describe("User submitted values mapped to form fields"),
-      submittedBy: z.uuid().nullable().describe("User who submitted the form"),
-      createdAt: z.date().nullable().describe("Time of submission creation"),
-      updatedAt: z.date().nullable().describe("Time of submission updation"),
+
+        .describe("Submitted values"),
+
+      submittedBy: z
+        .uuid()
+
+        .nullable()
+
+        .describe("User who submitted"),
+
+      createdAt: z.coerce
+
+        .date()
+
+        .nullable()
+
+        .describe("Submission created at"),
+
+      updatedAt: z.coerce
+
+        .date()
+
+        .nullable()
+
+        .describe("Submission updated at"),
     }),
   ),
 });

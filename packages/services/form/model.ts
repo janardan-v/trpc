@@ -11,7 +11,7 @@ export const createFormInput = z.object({
   isPublished: z.boolean().describe("Is the form published").default(false),
   password: z.string().describe("Password of the form").optional(),
   salt: z.string().describe("Salt of the password of form").optional(),
-  deadline: z.date().describe("Deadline of the form"),
+  deadline: z.coerce.date().describe("Deadline of the form"),
   adminId: z.uuid().describe("Admin of the form"),
 });
 
@@ -47,7 +47,7 @@ export const updateFormInput = z.object({
     .default("PUBLIC"),
   isPublished: z.boolean().describe("Is the form published").default(false),
   password: z.string().describe("Password of the form").optional(),
-  deadline: z.date().describe("Deadline of the form"),
+  deadline: z.coerce.date().describe("Deadline of the form"),
 });
 
 export type UpdateFormInputType = z.infer<typeof updateFormInput>;
@@ -71,33 +71,153 @@ export type GetPublicFormsInputType = z.infer<typeof getPublicFormsInput>;
 //#endregion
 
 //#region FORM FIELDS MODELS
-export const createFormFieldsInput = z.object({
-  userId: z.uuid().describe("Id of the user trying to create the field"),
-  formId: z.uuid().describe("Id of the parent form"),
-  label: z.string().min(4).max(100).describe("Label of the field"),
+export const createFormFieldsInput = z
+  .object({
+    userId: z.uuid().describe("Id of user creating field"),
 
-  type: z.enum(["TEXT", "EMAIL", "NUMBER", "DATE", "SELECT", "CHECKBOX", "RATING"]),
+    formId: z.uuid().describe("Parent form id"),
 
-  description: z.string().max(300).describe("Description of the field").optional(),
-  placeholder: z.string().max(100).describe("Placeholder of the field").optional(),
+    label: z.string().min(4).max(100),
 
-  isRequired: z.boolean().describe("Is the field required").default(false),
-});
+    type: z.enum(["TEXT", "EMAIL", "NUMBER", "DATE", "SELECT", "CHECKBOX", "RATING"]),
+
+    description: z.string().max(300).optional(),
+
+    placeholder: z.string().max(100).optional(),
+
+    isRequired: z.boolean().default(false),
+
+    options: z
+      .array(
+        z.object({
+          id: z.string(),
+          label: z.string(),
+          value: z.string(),
+        }),
+      )
+      .optional(),
+
+    checkboxLabel: z.string().max(150).optional(),
+
+    ratingMax: z.number().min(1).max(10).optional(),
+
+    minValue: z.number().optional(),
+
+    maxValue: z.number().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.type === "SELECT" && (!data.options || data.options.length === 0)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["options"],
+        message: "Select field requires options",
+      });
+    }
+
+    if (data.type === "RATING" && !data.ratingMax) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["ratingMax"],
+        message: "Rating max required",
+      });
+    }
+
+    if (data.type === "CHECKBOX" && !data.checkboxLabel) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["checkboxLabel"],
+        message: "Checkbox label required",
+      });
+    }
+
+    if (
+      data.type === "NUMBER" &&
+      data.minValue != null &&
+      data.maxValue != null &&
+      data.minValue > data.maxValue
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["minValue"],
+        message: "Min value cannot exceed max value",
+      });
+    }
+  });
 
 export type CreateFormFieldsInputType = z.infer<typeof createFormFieldsInput>;
 
-export const updateFormFieldsInput = z.object({
-  userId: z.uuid().describe("Id of the user trying to update the field"),
-  fieldId: z.uuid().describe("Id of the field to be updated"),
-  label: z.string().min(4).max(100).describe("Label of the field"),
+export const updateFormFieldsInput = z
+  .object({
+    userId: z.uuid().describe("Id of user updating field"),
 
-  type: z.enum(["TEXT", "EMAIL", "NUMBER", "DATE", "SELECT", "CHECKBOX", "RATING"]),
+    fieldId: z.uuid(),
 
-  description: z.string().max(300).describe("Description of the field").optional(),
-  placeholder: z.string().max(100).describe("Placeholder of the field").optional(),
+    label: z.string().min(4).max(100),
 
-  isRequired: z.boolean().describe("Is the field required").default(false),
-});
+    type: z.enum(["TEXT", "EMAIL", "NUMBER", "DATE", "SELECT", "CHECKBOX", "RATING"]),
+
+    description: z.string().max(300).optional(),
+
+    placeholder: z.string().max(100).optional(),
+
+    isRequired: z.boolean().default(false),
+
+    options: z
+      .array(
+        z.object({
+          id: z.string(),
+          label: z.string(),
+          value: z.string(),
+        }),
+      )
+      .optional(),
+
+    checkboxLabel: z.string().max(150).optional(),
+
+    ratingMax: z.number().min(1).max(10).optional(),
+
+    minValue: z.number().optional(),
+
+    maxValue: z.number().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.type === "SELECT" && (!data.options || data.options.length === 0)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["options"],
+        message: "Select field requires options",
+      });
+    }
+
+    if (data.type === "RATING" && !data.ratingMax) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["ratingMax"],
+        message: "Rating max required",
+      });
+    }
+
+    if (data.type === "CHECKBOX" && !data.checkboxLabel) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["checkboxLabel"],
+        message: "Checkbox label required",
+      });
+    }
+
+    if (
+      data.type === "NUMBER" &&
+      data.minValue != null &&
+      data.maxValue != null &&
+      data.minValue > data.maxValue
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["minValue"],
+        message: "Min value cannot exceed max value",
+      });
+    }
+  });
 
 export type UpdateFormFieldsInputType = z.infer<typeof updateFormFieldsInput>;
 
@@ -119,19 +239,20 @@ export type DeleteFormFieldsInputType = z.infer<typeof deleteFormFieldsInput>;
 //#region FORM SUBMISSION MODELS
 
 export const submitFormInput = z.object({
-  formId: z.uuid().describe("Id of the form to be submitted"),
-  userId: z.uuid().describe("Id of the user submitting the form").optional(),
-  browserFingerprint: z.string().describe("Fingerprint of the browser").optional(),
+  formId: z.uuid().describe("Id of form"),
+  userId: z.uuid().optional().describe("Submitting user"),
+  browserFingerprint: z.string().optional().describe("Browser fingerprint"),
   values: z
     .array(
       z.object({
-        formFieldId: z.uuid().describe("Id of the field"),
-        value: z.string().describe("Value of the field"),
+        formFieldId: z.uuid().describe("Field id"),
+        value: z
+          .union([z.string(), z.number(), z.boolean(), z.array(z.string())])
+          .describe("Submitted field value"),
       }),
     )
-    .min(1, "Atleast one field is requierd to submit"),
+    .min(1, "At least one field required"),
 });
-
 export type SubmitFormInputType = z.infer<typeof submitFormInput>;
 
 export const getSubmissionsByFormIdInput = z.object({

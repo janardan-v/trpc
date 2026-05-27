@@ -1,0 +1,6 @@
+.shadow-primary{
+
+box-shadow:
+var(--shadow-primary);
+
+}

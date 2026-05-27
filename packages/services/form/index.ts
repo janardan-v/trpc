@@ -203,6 +203,8 @@ class FormServices {
       createdAt,
       updatedAt,
       deadline,
+      isPublished,
+      visibility,
       field,
     };
   }
@@ -523,107 +525,231 @@ class FormServices {
 
   //#region SUBMISSIONS SERVICES
   public async submitForm(payload: SubmitFormInputType) {
-    const data = submitFormInput.safeParse(payload);
+    const parsed = submitFormInput.safeParse(payload);
 
-    if (!data.success) throw new Error(data.error.message);
+    if (!parsed.success) {
+      throw new Error(parsed.error.message);
+    }
 
-    const { formId, userId, values, browserFingerprint } = data.data;
+    const { formId, userId, values, browserFingerprint } = parsed.data;
 
-    //check if form exist or not, published or not and deadline is not passed yet
+    // FORM
+
     const form = await db
       .select({
         id: formsTable.id,
+
         isPublished: formsTable.isPublished,
+
         deadline: formsTable.deadline,
       })
       .from(formsTable)
       .where(eq(formsTable.id, formId));
 
-    if (!form[0]) throw new Error("Form not found");
-    if (!form[0].isPublished) throw new Error("Form not published");
-    if (form[0].deadline && form[0].deadline < new Date()) throw new Error("Form closed");
+    const found = form[0];
 
-    //valdiate fields belong to same form only
+    if (!found) throw new Error("Form not found");
+
+    if (!found.isPublished) {
+      throw new Error("Form not published");
+    }
+
+    if (found.deadline && found.deadline < new Date()) {
+      throw new Error("Form closed");
+    }
+
+    // FIELDS
+
     const fields = await db
       .select({
         id: formFieldsTable.id,
+
+        label: formFieldsTable.label,
+
+        type: formFieldsTable.type,
+
         isRequired: formFieldsTable.isRequired,
+
+        options: formFieldsTable.options,
+
+        ratingMax: formFieldsTable.ratingMax,
+
+        minValue: formFieldsTable.minValue,
+
+        maxValue: formFieldsTable.maxValue,
       })
       .from(formFieldsTable)
       .where(eq(formFieldsTable.formId, formId));
 
-    const valid = new Set(fields.map((f) => f.id));
-    for (const value of values) {
-      if (!valid.has(value.formFieldId)) throw new Error("Invalid field");
+    const fieldMap = new Map(fields.map((f) => [f.id, f]));
+
+    // INVALID FIELD
+
+    for (const v of values) {
+      if (!fieldMap.has(v.formFieldId)) {
+        throw new Error("Invalid field");
+      }
     }
 
-    // duplicate fields
+    // DUPLICATE FIELD
+
     const seen = new Set<string>();
 
-    for (const value of values) {
-      if (seen.has(value.formFieldId)) {
+    for (const v of values) {
+      if (seen.has(v.formFieldId)) {
         throw new Error("Duplicate field submission");
       }
 
-      seen.add(value.formFieldId);
+      seen.add(v.formFieldId);
     }
 
-    //validate required fields are sent necessarily
     const submitted = new Map(values.map((v) => [v.formFieldId, v.value]));
 
+    // REQUIRED
+
     for (const field of fields) {
-      if (field.isRequired && !submitted.get(field.id)?.trim()) {
-        throw new Error("Required field missing");
+      const value = submitted.get(field.id);
+
+      if (field.isRequired) {
+        const empty = value == null || value === "" || (Array.isArray(value) && value.length === 0);
+
+        if (empty) {
+          throw new Error(`${field.label} is required`);
+        }
       }
     }
 
-    //check unique submissions
-    let alreadySubmitted;
+    // TYPE VALIDATION
+
+    for (const v of values) {
+      const field = fieldMap.get(v.formFieldId)!;
+
+      switch (field.type) {
+        case "NUMBER":
+          if (typeof v.value !== "number") {
+            throw new Error(`${field.label} must be number`);
+          }
+
+          if (field.minValue != null && v.value < field.minValue) {
+            throw new Error(`${field.label} below minimum`);
+          }
+
+          if (field.maxValue != null && v.value > field.maxValue) {
+            throw new Error(`${field.label} above maximum`);
+          }
+
+          break;
+
+        case "CHECKBOX":
+          if (typeof v.value !== "boolean") {
+            throw new Error(`${field.label} invalid`);
+          }
+
+          break;
+
+        case "RATING":
+          if (typeof v.value !== "number") {
+            throw new Error("Invalid rating");
+          }
+
+          if (v.value < 1 || v.value > (field.ratingMax ?? 5)) {
+            throw new Error("Invalid rating");
+          }
+
+          break;
+
+        case "SELECT":
+          if (typeof v.value !== "string") {
+            throw new Error("Invalid option");
+          }
+
+          const valid = field.options?.some((opt) => opt.value === v.value);
+
+          if (!valid) {
+            throw new Error("Invalid option selected");
+          }
+
+          break;
+
+        case "EMAIL":
+          if (typeof v.value !== "string" || !/\S+@\S+\.\S+/.test(v.value)) {
+            throw new Error("Invalid email");
+          }
+
+          break;
+
+        default:
+          if (typeof v.value !== "string") {
+            throw new Error(`${field.label} invalid`);
+          }
+      }
+    }
+
+    // DUPLICATE SUBMISSION
+
+    let existing;
+
     if (userId) {
-      alreadySubmitted = await db
+      existing = await db
         .select()
         .from(formSubmissionsTable)
         .where(
           and(
             eq(formSubmissionsTable.formId, formId),
+
             eq(formSubmissionsTable.submittedBy, userId),
           ),
         );
     } else {
-      if (!browserFingerprint) throw new Error("Browser fingerprint not provided");
+      if (!browserFingerprint) {
+        throw new Error("Browser fingerprint missing");
+      }
 
-      alreadySubmitted = await db
+      existing = await db
         .select()
         .from(formSubmissionsTable)
         .where(
           and(
             eq(formSubmissionsTable.formId, formId),
+
             eq(formSubmissionsTable.browserFingerprint, browserFingerprint),
           ),
         );
     }
-    if (alreadySubmitted.length > 0) throw new Error("You have already submitted this form");
 
-    const result = await db
+    if (existing.length > 0) {
+      throw new Error("Already submitted");
+    }
+
+    const inserted = await db
       .insert(formSubmissionsTable)
       .values({
         formId,
+
         values,
-        submittedBy: userId ? userId : null,
+
+        submittedBy: userId ?? null,
+
         browserFingerprint,
       })
       .returning({
         id: formSubmissionsTable.id,
+
         formId: formSubmissionsTable.formId,
       });
 
-    if (!result || result.length === 0 || !result[0])
-      throw new Error("Something went wrong while submitting your form");
+    const submission = inserted[0];
+
+    if (!submission) {
+      throw new Error("Failed submitting form");
+    }
 
     return {
-      id: result[0].id,
-      formId: result[0].formId,
       success: true,
+
+      id: submission.id,
+
+      formId: submission.formId,
     };
   }
 

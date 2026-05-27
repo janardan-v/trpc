@@ -1,0 +1,44 @@
+@keyframes fadeIn{
+
+from{
+
+opacity:0;
+transform:
+translateY(6px);
+
+}
+
+to{
+
+opacity:1;
+transform:
+translateY(0);
+
+}
+
+}
+
+@keyframes shimmer{
+
+0%{
+
+background-position:
+-200%;
+
+}
+
+100%{
+
+background-position:
+200%;
+
+}
+
+}
+
+.animate-fade{
+
+animation:
+fadeIn .25s ease;
+
+}

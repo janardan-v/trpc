@@ -27,9 +27,7 @@ import {
 
 import { authenticatedProcedure, publicProcedure, router } from "../../trpc";
 import { generatePath } from "../../utils/path-generator";
-import { setAuthenticationCookie } from "../../utils/cookie.js";
 import { formService } from "../../services";
-import { getPublicFormsInput } from "@repo/services/form/model";
 
 const TAGS = ["FORMS"];
 const getPath = generatePath("/forms");
@@ -215,14 +213,14 @@ export const formRouter = router({
   getFormFields: authenticatedProcedure
     .meta({
       openapi: {
-        method: "POST",
+        method: "GET",
         path: getPath("/get-form-fields"),
         tags: TAGS,
       },
     })
     .input(getFormFieldsInputModel)
     .output(getFormFieldsOutputModel)
-    .mutation(async ({ input, ctx }) => {
+    .query(async ({ input, ctx }) => {
       const { id } = ctx.user;
       const result = await formService.getFormFields({
         ...input,
@@ -255,7 +253,7 @@ export const formRouter = router({
   getSubmissionsByFormId: authenticatedProcedure
     .meta({
       openapi: {
-        method: "POST",
+        method: "GET",
         path: getPath("/submissions-by-form-id"),
         tags: TAGS,
       },
@@ -273,6 +271,7 @@ export const formRouter = router({
     }),
 
   submitForm: publicProcedure
+
     .meta({
       openapi: {
         method: "POST",
@@ -283,15 +282,14 @@ export const formRouter = router({
     .input(submitFormInputModel)
     .output(submitFormOutputModel)
     .mutation(async ({ input, ctx }) => {
-      const id = ctx.user?.id;
       const result = await formService.submitForm({
         ...input,
-        userId: id,
-      });
 
+        userId: ctx.user?.id ?? input.userId ?? undefined,
+        browserFingerprint: input.browserFingerprint,
+      });
       return result;
     }),
-
   getPublicForms: publicProcedure
     .meta({
       openapi: {
